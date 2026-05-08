@@ -218,6 +218,40 @@ def painel_turma(turma_id):
             st.info("Nenhum aluno matriculado ainda.")
         else:
             st.markdown(f"**{len(matriculas)} aluno(s) matriculado(s)**")
+    # Exportação
+            with st.expander("📤 Exportar lista de alunos"):
+                import pandas as pd
+                import io
+
+                campos_disponiveis = {
+                    "nome": "Nome completo",
+                    "apelido": "Apelido",
+                    "email": "E-mail",
+                    "telefone": "Telefone",
+                    "cpf": "CPF",
+                    "data_nascimento": "Data de nascimento"
+                }
+                campos_sel = st.multiselect(
+                    "Selecione os campos",
+                    list(campos_disponiveis.keys()),
+                    default=["nome", "apelido", "telefone"],
+                    format_func=lambda x: campos_disponiveis[x]
+                )
+                if campos_sel:
+                    dados_exp = []
+                    for m in matriculas:
+                        cliente = m.get("clientes") or {}
+                        dados_exp.append({campos_disponiveis[c]: cliente.get(c, "") for c in campos_sel})
+
+                    df = pd.DataFrame(dados_exp)
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        csv = df.to_csv(index=False).encode("utf-8")
+                        st.download_button("⬇️ CSV", csv, f"{turma['nome']}.csv", "text/csv")
+                    with col2:
+                        buffer = io.BytesIO()
+                        df.to_excel(buffer, index=False, engine="openpyxl")
+                        st.download_button("⬇️ Excel", buffer.getvalue(), f"{turma['nome']}.xlsx")
             for m in matriculas:
                 cliente = m.get("clientes") or {}
                 freq = calcular_frequencia(m["id"])
@@ -244,6 +278,24 @@ def painel_turma(turma_id):
                             if atualizar_status_matricula(m["id"], novo_status):
                                 st.success("Status atualizado!")
                                 st.rerun()
+                        # Observações da matrícula
+                    st.markdown("---")
+                    obs_atual = m.get("observacoes", "") or ""
+                    nova_obs = st.text_area(
+                        "📝 Observações (CS / Financeiro)",
+                        value=obs_atual,
+                        height=80,
+                        key=f"obs_{m['id']}"
+                    )
+                    if st.button("💾 Salvar observação", key=f"salvar_obs_{m['id']}"):
+                        try:
+                            supabase.table("matriculas").update({
+                                "observacoes": nova_obs
+                            }).eq("id", m["id"]).execute()
+                            st.success("Observação salva!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro: {e}")
 
     # ABA PRESENÇA
     with aba2:

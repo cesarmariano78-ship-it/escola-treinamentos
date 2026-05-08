@@ -124,9 +124,11 @@ def formulario_cliente(cliente=None):
     col1, col2 = st.columns(2)
     with col1:
         nome = st.text_input("Nome completo *", value=nome_val)
+        apelido = st.text_input("Apelido / Como quer ser chamado", value=cliente.get("apelido", "") if cliente else "")
         email = st.text_input("E-mail", value=email_val)
         telefone = st.text_input("Telefone / WhatsApp", value=telefone_val)
         cpf = st.text_input("CPF", value=cpf_val)
+        data_nasc = st.date_input("Data de nascimento", value=None, key="data_nasc")
 
     with col2:
         origem = st.selectbox("Como chegou até nós? *", ORIGENS, index=origem_idx)
@@ -141,9 +143,11 @@ def formulario_cliente(cliente=None):
 
     return {
         "nome": nome,
+        "apelido": apelido,
         "email": email,
         "telefone": telefone,
         "cpf": cpf,
+        "data_nascimento": data_nasc.isoformat() if data_nasc else None,
         "origem": origem,
         "parceiro_id": parceiro_id,
         "indicado_por": indicado_por,
@@ -155,7 +159,43 @@ def formulario_cliente(cliente=None):
 # ============================================================
 def pagina_clientes():
     st.title("👥 Clientes")
+# EXPORTAÇÃO
+    with st.expander("📤 Exportar dados"):
+        import pandas as pd
+        import io
 
+        clientes_exp = listar_clientes()
+        if not clientes_exp:
+            st.info("Nenhum cliente para exportar.")
+        else:
+            campos_disponiveis = {
+                "nome": "Nome completo",
+                "apelido": "Apelido",
+                "email": "E-mail",
+                "telefone": "Telefone",
+                "cpf": "CPF",
+                "data_nascimento": "Data de nascimento",
+                "origem": "Origem",
+                "observacoes": "Observações"
+            }
+            campos_sel = st.multiselect(
+                "Selecione os campos para exportar",
+                list(campos_disponiveis.keys()),
+                default=["nome", "apelido", "telefone", "email"],
+                format_func=lambda x: campos_disponiveis[x]
+            )
+            if campos_sel:
+                df = pd.DataFrame([{c: cl.get(c, "") for c in campos_sel} for cl in clientes_exp])
+                df.columns = [campos_disponiveis[c] for c in campos_sel]
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    csv = df.to_csv(index=False).encode("utf-8")
+                    st.download_button("⬇️ Baixar CSV", csv, "clientes.csv", "text/csv")
+                with col2:
+                    buffer = io.BytesIO()
+                    df.to_excel(buffer, index=False, engine="openpyxl")
+                    st.download_button("⬇️ Baixar Excel", buffer.getvalue(), "clientes.xlsx")
     aba1, aba2, aba3 = st.tabs(["📋 Lista", "➕ Novo Cliente", "🤝 Parceiros"])
 
     # ── ABA 1: LISTA DE CLIENTES ──
