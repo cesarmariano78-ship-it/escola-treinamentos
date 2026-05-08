@@ -266,19 +266,45 @@ def painel_lead(lead_id):
             autor = fu.get("perfis") or {}
             data = fu.get("data_contato", "")[:10] if fu.get("data_contato") else "—"
             tipo_label = TIPOS_FOLLOWUP_LABEL.get(fu.get("tipo", ""), "📝")
-            proximo_txt = f" · Próximo: {fu['proximo_contato'][:10]}" if fu.get("proximo_contato") else ""
-            st.markdown(f"""
-            <div style="background:#F7FAFC;padding:10px;border-radius:8px;margin-bottom:6px;">
-                {tipo_label} <strong>{data}</strong> — {autor.get('nome', '—')}{proximo_txt}<br>
-                {fu.get('descricao', '')}
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info("Nenhum follow-up registrado ainda.")
+            if fu.get("proximo_contato"):
+                d = fu["proximo_contato"][:10].split("-")
+                proximo_txt = f" · Próximo: {d[2]}/{d[1]}/{d[0]}"
+            else:
+                proximo_txt = ""
 
-    if st.button("← Voltar ao funil"):
-        del st.session_state["lead_ativo"]
-        st.rerun()
+            with st.expander(f"{tipo_label} {data} — {autor.get('nome', '—')}{proximo_txt}"):
+                if st.session_state.get(f"editando_fu_{fu['id']}"):
+                    tipo_edit = st.selectbox(
+                        "Tipo", TIPOS_FOLLOWUP,
+                        index=TIPOS_FOLLOWUP.index(fu.get("tipo", "anotacao")),
+                        format_func=lambda x: TIPOS_FOLLOWUP_LABEL[x],
+                        key=f"tipo_edit_{fu['id']}"
+                    )
+                    desc_edit = st.text_area("Descrição", value=fu.get("descricao", ""), key=f"desc_edit_{fu['id']}")
+                    proximo_edit = st.date_input("Próximo contato", value=None, key=f"prox_edit_{fu['id']}")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("💾 Salvar", key=f"salvar_edit_{fu['id']}"):
+                            try:
+                                supabase.table("followups").update({
+                                    "tipo": tipo_edit,
+                                    "descricao": desc_edit,
+                                    "proximo_contato": proximo_edit.isoformat() if proximo_edit else None
+                                }).eq("id", fu["id"]).execute()
+                                del st.session_state[f"editando_fu_{fu['id']}"]
+                                st.success("Follow-up atualizado!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro: {e}")
+                    with col2:
+                        if st.button("❌ Cancelar", key=f"cancel_edit_{fu['id']}"):
+                            del st.session_state[f"editando_fu_{fu['id']}"]
+                            st.rerun()
+                else:
+                    st.markdown(fu.get("descricao", ""))
+                    if st.button("✏️ Editar", key=f"edit_fu_{fu['id']}"):
+                        st.session_state[f"editando_fu_{fu['id']}"] = True
+                        st.rerun()
 
 # ============================================================
 # INTERFACE PRINCIPAL
